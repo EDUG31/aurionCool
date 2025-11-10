@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aurion</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Roboto',sans-serif;}
+body{background:#121212;color:#fff;}
+header{display:flex;align-items:center;justify-content:space-between;background:#1f1f1f;padding:10px 20px;position:sticky;top:0;z-index:100;}
+header h1{color:#ff0000;font-family:'Arial Black',sans-serif;font-size:1.5rem;cursor:pointer;}
+header input{padding:5px 12px;border-radius:20px;border:none;width:200px;}
+header button{padding:5px 10px;background:#333;border:none;border-radius:5px;color:#fff;cursor:pointer;margin-left:10px;}
+.sidebar{width:200px;background:#1f1f1f;padding:20px;height:calc(100vh - 50px);position:fixed;top:50px;overflow-y:auto;}
+.sidebar h2{font-size:1.1rem;margin-bottom:10px;color:#ccc;}
+.sidebar button{margin-top:10px;width:100%;padding:8px;border:none;border-radius:5px;background:#ff0000;color:#fff;cursor:pointer;}
+main{margin-left:220px;padding:20px;}
+.section{margin-bottom:30px;}
+.section h2{margin-bottom:15px;}
+.video-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:15px;}
+.video-card{background:#1e1e1e;border-radius:10px;overflow:hidden;cursor:pointer;transition:0.2s;}
+.video-card:hover{transform:translateY(-3px);}
+.video-card video{width:100%;display:block;border-radius:10px 10px 0 0;}
+.video-info{padding:8px;}
+.video-info h3{font-size:15px;margin-bottom:4px;}
+.video-info .meta{font-size:12px;color:#aaa;}
+.subscribe-btn, .like-btn{background:#ff0000;border:none;border-radius:20px;padding:4px 10px;color:#fff;font-weight:bold;cursor:pointer;margin-top:5px;margin-right:5px;transition:0.2s;}
+.subscribe-btn.subscribed{background:#555;}
+.shorts-container{display:flex;overflow-x:auto;gap:10px;padding-bottom:10px;}
+.shorts-container .short-card{min-width:130px;background:#1e1e1e;border-radius:10px;overflow:hidden;flex-shrink:0;}
+.shorts-container video{width:100%;border-radius:10px 10px 0 0;}
+.add-btn{position:fixed;bottom:25px;right:25px;background:#ff0000;border:none;border-radius:50%;width:55px;height:55px;font-size:2rem;color:#fff;display:flex;justify-content:center;align-items:center;cursor:pointer;}
+.modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);justify-content:center;align-items:center;z-index:200;}
+.modal-content{background:#1e1e1e;padding:20px;border-radius:10px;width:90%;max-width:450px;}
+.modal-content h2{margin-bottom:10px;}
+.modal-content input, .modal-content textarea, .modal-content select{width:100%;padding:8px;margin-bottom:10px;border-radius:5px;border:none;background:#333;color:#fff;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1 onclick="renderHome()">Aurion</h1>
+  <input type="text" id="search" placeholder="Search..." oninput="filterVideos()">
+  <div>
+    <button onclick="showMyProfile()">My Profile</button>
+  </div>
+</header>
+
+<div class="sidebar">
+  <h2>Channels</h2>
+  <div id="channelsList"></div>
+  <button onclick="openChannelModal()">+ Add Channel</button>
+</div>
+
+<main>
+  <div id="contentArea"></div>
+</main>
+
+<button class="add-btn" onclick="openVideoModal()">+</button>
+
+<!-- Video Modal -->
+<div class="modal" id="videoModal">
+  <div class="modal-content">
+    <h2>Add Video</h2>
+    <input type="text" id="videoTitle" placeholder="Title">
+    <input type="text" id="videoChannel" placeholder="Channel Name">
+    <input type="text" id="videoTags" placeholder="Tags (comma separated)">
+    <select id="videoType">
+      <option value="normal">Normal Video</option>
+      <option value="short">Short</option>
+    </select>
+    <input type="file" id="videoFile" accept="video/*">
+    <textarea id="videoDesc" placeholder="Description"></textarea>
+    <button onclick="addVideo()">Upload</button>
+    <button onclick="closeVideoModal()">Cancel</button>
+  </div>
+</div>
+
+<!-- Channel Modal -->
+<div class="modal" id="channelModal">
+  <div class="modal-content">
+    <h2>Add Channel</h2>
+    <input type="text" id="channelName" placeholder="Channel Name">
+    <button onclick="addChannel()">Add Channel</button>
+    <button onclick="closeChannelModal()">Cancel</button>
+  </div>
+</div>
+
+<script>
+// ===== Current User =====
+let currentUser = JSON.parse(localStorage.getItem('aurion_user')) || {name:'Me', subscriptions:[], followers:0, likes:[]};
+localStorage.setItem('aurion_user', JSON.stringify(currentUser));
+
+// ===== Data =====
+let channels = JSON.parse(localStorage.getItem('aurion_channels')) || [];
+let videos = JSON.parse(localStorage.getItem('aurion_videos')) || [];
+
+function saveData(){
+    localStorage.setItem('aurion_videos',JSON.stringify(videos));
+    localStorage.setItem('aurion_channels',JSON.stringify(channels));
+    localStorage.setItem('aurion_user',JSON.stringify(currentUser));
+}
+
+// ===== Modals =====
+function openVideoModal(){ document.getElementById('videoModal').style.display='flex'; }
+function closeVideoModal(){ document.getElementById('videoModal').style.display='none'; }
+function openChannelModal(){ document.getElementById('channelModal').style.display='flex'; }
+function closeChannelModal(){ document.getElementById('channelModal').style.display='none'; }
+
+// ===== Render Channels =====
+function renderChannels(){
+  const container=document.getElementById('channelsList'); container.innerHTML='';
+  channels.forEach((ch)=>{
+    const div=document.createElement('div'); div.className='channel'; 
+    div.innerText=ch.name+' ('+ch.followers+')';
+    div.style.cursor='pointer'; 
+    div.onclick=()=>openChannelProfile(ch.name); 
+    container.appendChild(div);
+  });
+}
+
+// ===== Render Videos =====
+function renderVideos(list, containerId='videoGrid'){
+  const grid=document.getElementById(containerId);
+  if(!grid) return;
+  grid.innerHTML='';
+  list.forEach((v,i)=>{
+    const card=document.createElement('div'); card.className='video-card';
+    const subscribed = currentUser.subscriptions.includes(v.channel) ? 'subscribed' : '';
+    const subText = subscribed ? 'Subscribed' : 'Subscribe';
+    const liked = currentUser.likes.includes(i) ? 'liked' : '';
+    card.innerHTML=`<video src="${v.url}" controls preload="metadata"></video>
+      <div class="video-info">
+        <h3>${v.title}</h3>
+        <div class="meta"><span class="channel-name">${v.channel}</span> • Views: ${v.views} • Likes: ${v.likes}</div>
+        <button class="subscribe-btn ${subscribed}" onclick="subscribeChannel('${v.channel}', this)">${subText}</button>
+        <button class="like-btn ${liked}" onclick="likeVideo(${i}, this)">Like</button>
+      </div>`;
+    const videoEl = card.querySelector('video');
+    videoEl.addEventListener('play', ()=>{
+      v.views++;
+      saveData();
+      renderHome();
+    }, {once:true});
+    grid.appendChild(card);
+  });
+}
+
+// ===== Video Functions =====
+function addVideo(){
+  const title=document.getElementById('videoTitle').value;
+  const channelName=document.getElementById('videoChannel').value;
+  const tags=document.getElementById('videoTags').value.split(',').map(t=>t.trim());
+  const type=document.getElementById('videoType').value;
+  const file=document.getElementById('videoFile').files[0];
+  if(!file || !title || !channelName){ alert('Fill required fields'); return; }
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const videoData={title,url:e.target.result,channel:channelName,tags,type,views:0,likes:0,comments:[]};
+    videos.unshift(videoData);
+    if(!channels.some(c=>c.name===channelName)) channels.push({name:channelName,followers:0});
+    saveData(); renderChannels(); renderHome(); closeVideoModal();
+  }
+  reader.readAsDataURL(file);
+}
+
+// ===== Channel Functions =====
+function addChannel(){
+  const name=document.getElementById('channelName').value;
+  if(!name){ alert('Enter channel name'); return; }
+  if(channels.some(c=>c.name===name)){ alert('Channel exists'); return; }
+  channels.push({name,followers:0});
+  saveData(); renderChannels(); closeChannelModal();
+}
+
+function openChannelProfile(name){
+  const ch = channels.find(c=>c.name===name);
+  const content=document.getElementById('contentArea');
+  content.innerHTML=`<h2>${ch.name}</h2>
+    <p>Followers: ${ch.followers}</p>
+    <button class="subscribe-btn ${currentUser.subscriptions.includes(ch.name)?'subscribed':''}" onclick="subscribeChannel('${ch.name}', this)">${currentUser.subscriptions.includes(ch.name)?'Subscribed':'Subscribe'}</button>
+    <button onclick="renderHome()">Back</button>
+    <div class="video-grid" id="videoGrid"></div>`;
+  const chVideos = videos.filter(v=>v.channel===name);
+  renderVideos(chVideos);
+}
+
+// ===== Subscription =====
+function subscribeChannel(name, btn){
+  const ch = channels.find(c => c.name === name);
+  if(!currentUser.subscriptions.includes(name)){
+    currentUser.subscriptions.push(name);
+    ch.followers++;
+    btn.classList.add('subscribed');
+    btn.innerText='Subscribed';
+  } else {
+    currentUser.subscriptions = currentUser.subscriptions.filter(c => c !== name);
+    ch.followers--;
+    btn.classList.remove('subscribed');
+    btn.innerText='Subscribe';
+  }
+  saveData(); renderChannels(); renderHome();
+}
+
+// ===== Like Video =====
+function likeVideo(index, btn){
+  if(!currentUser.likes.includes(index)){
+    currentUser.likes.push(index);
+    videos[index].likes++;
+    btn.classList.add('liked');
+  } else {
+    currentUser.likes = currentUser.likes.filter(i=>i!==index);
+    videos[index].likes--;
+    btn.classList.remove('liked');
+  }
+  saveData(); renderHome();
+}
+
+// ===== Home =====
+function renderHome(){ 
+  const content=document.getElementById('contentArea');
+  content.innerHTML=`<div class="section"><h2>Trending</h2><div class="video-grid" id="videoGrid"></div></div>
+  <div class="section"><h2>Shorts</h2><div class="shorts-container" id="shortsGrid"></div></div>`;
+  const trending = [...videos].sort((a,b)=>b.views-a.views).slice(0,6);
+  renderVideos(trending,'videoGrid');
+  const shorts = videos.filter(v=>v.type==='short');
+  renderVideos(shorts,'shortsGrid');
+}
+
+// ===== Search =====
+function filterVideos(){ 
+  const q=document.getElementById('search').value.toLowerCase(); 
+  renderVideos(videos.filter(v=>v.title.toLowerCase().includes(q) || v.tags.some(t=>t.toLowerCase().includes(q))));
+}
+
+// ===== My Profile =====
+function showMyProfile(){
+  const content = document.getElementById('contentArea');
+  content.innerHTML = `<h2>My Profile</h2>
+    <h3>Subscriptions</h3>
+    <ul>${currentUser.subscriptions.map(sub => '<li style="cursor:pointer;color:#ff0000;" onclick="openChannelProfile(\''+sub+'\')">'+sub+'</li>').join('')}</ul>
+    <h3>Liked Videos</h3>
+    <div class="video-grid" id="videoGrid"></div>
+    <button onclick="renderHome()">Back</button>`;
+  const likedVideos = currentUser.likes.map(i=>videos[i]);
+  renderVideos(likedVideos,'videoGrid');
+}
+
+// ===== Init =====
+renderChannels(); renderHome();
+</script>
+
+</body>
+</html>
